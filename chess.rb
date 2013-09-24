@@ -1,8 +1,8 @@
 class Game
   def initialize
     @game_board = Board.new
-    @player1 = Player.new
-    @player2 = Player.new
+    @player1 = HumanPlayer.new
+    @player2 = HumanPlayer.new
     @turn = 1
   end
 
@@ -18,6 +18,9 @@ end
 
 
 class Board
+
+  attr_accessor :board
+
   def initialize
     @board = Array.new(8) { Array.new(8) }
 
@@ -36,24 +39,61 @@ class Board
     @board[6] = [Pawn.new([6,0], "black"), Pawn.new([6,1], "black"), Pawn.new([6,2], "black"),
                  Pawn.new([6,3], "black"), Pawn.new([6,4], "black"), Pawn.new([6,5], "black"),
                  Pawn.new([6,6], "black"), Pawn.new([6,7], "black")]
+
   end
 
 
+  def display
+    @board.each do |row|
+      p row
+    end
+  end
 
 end
 
-class Player
+class HumanPlayer
 end
 
 module SlidingPieces
 
-  def moves
-
+  def moves(board)
+    moves = []
+    move_dirs.each do |x, y|
+      (1..7).each do |multiplier|
+        target = [@pos[0] + x * multiplier, @pos[1] + y * multiplier]
+        moves << target if valid_move?(target, [x,y], board)
+      end
+    end
+    moves
   end
+
+  def valid_move?(target, move_dir, board)
+    return false if target[0] < 0 || target[0] > 7 || target[1] < 0 || target[1] > 7
+
+    tested_pos = @pos
+    test_x,test_y = @pos
+    target_x, target_y = target
+    until tested_pos == target
+      if !board.board[test_x][test_y].nil?
+        return false
+      else
+        test_x += move_dir[0]
+        test_y += move_dir[1]
+      end
+    end
+
+    if !board[target_x][target_y].nil?
+      return false if board[target_x][target_y].color == self.color
+    else
+
+    #test for check
+    true
+  end
+
 end
 
 class Rook
-
+  attr_reader :color
   include SlidingPieces
 
   def initialize(pos, color)
@@ -62,11 +102,12 @@ class Rook
   end
 
   def move_dirs
-
+    [[-1,0],[0,-1],[0,1],[1,0]]
   end
 end
 
 class Queen
+  attr_reader :color
   include SlidingPieces
   def initialize(pos, color)
     @pos = pos
@@ -75,11 +116,12 @@ class Queen
 
 
   def move_dirs
-
+    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1][-1,1]]
   end
 end
 
 class Bishop
+  attr_reader :color
   include SlidingPieces
   def initialize(pos, color)
     @pos = pos
@@ -88,18 +130,36 @@ class Bishop
 
 
   def move_dirs
-
+    [[1,1],[-1,-1],[1,-1][-1,1]]
   end
 end
 
 module SteppingPieces
 
-  def moves
+  def moves(board)
+    moves = []
+    curr_x, curr_y = @pos
+    move_locations.each do |dx, dy|
+      target = [curr_x + dx, curr_y + dy]
+      moves << target if valid_move?(target, board)
+    end
+    moves
+  end
 
+  def valid_move?(target, board)
+    target = target_x, target_y
+    if !board[target_x][target_y].nil?
+      return false if board[target_x][target_y].color == self.color
+    else
+      #check check
+    end
+
+    true
   end
 end
 
 class King
+  attr_reader :color
   include SteppingPieces
   def initialize(pos, color)
     @pos = pos
@@ -107,12 +167,13 @@ class King
   end
 
 
-  def move_dirs
-
+  def move_locations
+    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1][-1,1]]
   end
 end
 
 class Knight
+  attr_reader :color
   include SteppingPieces
   def initialize(pos, color)
     @pos = pos
@@ -120,22 +181,70 @@ class Knight
   end
 
 
-  def move_dirs
-
+  def move_locations
+    [[-2,-1],[-2,1],[-1,-2],[-1,2],[1,-2],[1,2],[2,-1],[2,1]]
   end
 
 end
 
 class Pawn
-
+  attr_reader :color
   def initialize(pos, color)
     @pos = pos
     @color = color
   end
 
 
-  def moves
+  def moves(board)
+    if @color == "white"
+      move_offsets = [[1,0]]
+      if @pos[0] == 1
+        move_offsets << [2,0]
+      end
+    else
+      move_offsets = [[-1,0]]
+      if @pos[0] == 6
+        move_offsets << [-2,0]
+      end
+    end
 
+
+
+    if color == "white"
+      if board[@pos[0] + 1][@pos[1] + 1].color == "black"
+        move_offsets += [1,1]
+      end
+      if board[@pos[0] + 1][@pos[1] - 1].color == "black"
+        move_offsets += [1,-1]
+      end
+    else
+      if board[@pos[0] - 1][@pos[1] + 1].color == "white"
+        move_offsets += [-1,1]
+      end
+      if board[@pos[0] - 1][@pos[1] - 1].color == "white"
+        move_offsets += [-1,-1]
+    end
+
+    moves = move_offsets.select {|offset| valid_move?(offset, board)}
   end
 
+  def valid_move?(offset, board)
+    offset_vert, offset_horz = offset
+    if offset_horz == 0
+      (1..offset_vert).each do |moves_forward|
+        return false if !board[@pos[0] +  moves_forward][@pos[1]].nil?
+      end
+    end
+  end
+
+    # def valid_move?(target, board)
+#       target = target_x, target_y
+#       if !board[target_x][target_y].nil?
+#         return false if board[target_x][target_y].color == self.color
+#       else
+#         #check check
+#       end
+#
+#       true
+#     end
 end
