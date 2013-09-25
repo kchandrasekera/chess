@@ -16,7 +16,9 @@ class Game
       @game_board.display
       puts "Check!" if @game_board.check?(:white) || @game_board.check?(:green)
       begin
-        @turn % 2 == 1 ? move = @player1.move("Player 1") : move = @player2.move("Player 2")
+        @turn % 2 == 1 ? player = @player1 : player = @player2
+        move = player.move(player.color)
+        @game_board.check_color(move, player.color)
         @game_board.execute_valid_move(move)
       rescue InvalidMoveError
         retry
@@ -70,10 +72,17 @@ class Board
     end
   end
 
+  def check_color(move, color)
+    pos_vert = move[0][0]
+    pos_horz = move[0][1]
+
+    raise InvalidMoveError.new if @board[pos_vert][pos_horz].color != color
+  end
+
+
   def execute_move(current_pos, intended_pos)
     p "current: #{current_pos}"
     p "intended: #{intended_pos}"
-    p @board[current_pos[0]]
     @board[current_pos[0]][current_pos[1]].pos = intended_pos
     @board[intended_pos[0]][intended_pos[1]] = @board[current_pos[0]][current_pos[1]]
     @board[current_pos[0]][current_pos[1]] = nil
@@ -89,7 +98,7 @@ class Board
       execute_move(current_pos, intended_pos)
     else
       p "error inside loop"
-      raise InvalidMoveError.new "Invalid move"
+      raise InvalidMoveError.new
     end
 
   end
@@ -145,8 +154,8 @@ class HumanPlayer
     @color = color
   end
 
-  def move(player)
-    puts player
+  def move(color)
+    puts "#{color} move: "
     puts "What piece would you like to move? e.g. '1, 3'"
     start_pos = gets.chomp.split(", ").map(&:to_i)
     puts "Where would you like to move it to? e.g. '2, 3'"
@@ -155,10 +164,10 @@ class HumanPlayer
     [start_pos, end_pos]
   end
 
+
 end
 
 class Piece
-
 end
 
 module SlidingPieces
@@ -176,6 +185,7 @@ module SlidingPieces
 
   def valid_moves(game_board)
     valid_moves = moves(game_board)
+    p valid_moves
     valid_moves.select do |move|
       p "our current position is "
       !game_board.check?(@color, @pos, [move[0], move[1]])
@@ -186,22 +196,26 @@ module SlidingPieces
     target_vert, target_horz = target
     return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
 
-    tested_pos = @pos
-    test_vert,test_horz = @pos
+    #p "pos: #{@pos}"
+    #p "target: {target}"
+    tested_pos = [@pos[0] + move_dir[0], @pos[1] + move_dir[1]]
+    test_vert,test_horz = tested_pos
 
-    until tested_pos == target
+    until [test_vert, test_horz] == target
       if !game_board.board[test_vert][test_horz].nil?
+        #p "tested_pos: #{[test_vert, test_horz]}, intermediary square occupied, false"
         return false
-      else
-        test_vert += move_dir[0]
-        test_horz += move_dir[1]
       end
+      test_vert += move_dir[0]
+      test_horz += move_dir[1]
     end
 
     if !game_board.board[target_vert][target_horz].nil?
+      #p "you are already occupying square"
       return false if game_board.board[target_vert][target_horz].color == self.color
     end
 
+    #p "this is gonna be a valid move"
     true
   end
 
@@ -246,8 +260,6 @@ class Bishop < Piece
     @color = color
     @unicode = unicode
   end
-
-
 
   def move_dirs
     [[1,1],[-1,-1],[1,-1],[-1,1]]
@@ -406,35 +418,12 @@ class Array
     end
     duped_array
   end
-
-    # self.each_with_index do |el, idx|
-      #  if el is an array
-      #  call deep dup on it
-      # elsif el is a piece
-            # dup the piece
-            # dup the piece location
-      #end
-
-
-      # class Array
-      #   def deep_dup
-      #     duped_array = []
-      #     if self.flatten == self
-      #       return self.dup
-      #     else
-      #       self.each do |el|
-      #         duped_array << el.deep_dup
-      #       end
-      #     end
-      #     duped_array
-      #   end
-      # end
 end
 
 
 class InvalidMoveError < StandardError
-  def initialize(msg = "Invalid move. Please reenter a move:")
-    super
+  def initialize
+    puts "Invalid move. Please reenter a move:"
   end
 end
 
