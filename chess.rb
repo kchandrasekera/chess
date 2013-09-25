@@ -2,6 +2,7 @@
 require "colorize"
 
 class Game
+  attr_accessor :game_board, :player1, :player2, :turn
   def initialize
     @game_board = Board.new
     @player1 = HumanPlayer.new(:white)
@@ -12,13 +13,14 @@ class Game
   def play
     until @game_board.checkmate?
       @game_board.display
+      puts "Check" if @game_board.check?(:white) || @game_board.check?(:green)
       begin
         @turn % 2 == 1 ? move = @player1.move : move = @player2.move
-        validate_move
+        execute_valid_move
       rescue
         retry
-        @turn += 1
       end
+      @turn += 1
     end
   end
 end
@@ -48,7 +50,6 @@ class Board
                 Bishop.new([7,5], :green, "\u2657"), Knight.new([7,6], :green, "\u2658"), Rook.new([7,7], :green, "\u2656")]
 
 
-
   end
 
 
@@ -76,8 +77,9 @@ class Board
 
   end
 
-  def validate_move(current_pos, intended_pos)
-    if @board[current_pos[0]][current_pos[1]].moves.include?(intended_pos)
+  def execute_valid_move(current_pos, intended_pos)
+    self.is_a?(Array)
+    if @board[current_pos[0]][current_pos[1]].moves(self).include?(intended_pos)
       execute_move(current_pos, intended_pos)
     else
       #invalid move - raise exception
@@ -86,16 +88,34 @@ class Board
 
   end
 
-  def check?(current_pos, intended_pos)
-    duped_board = @board.deep_dup
-    duped_board.execute_move(current_pos, intended_pos)
+  def check?(color, current_pos = nil, intended_pos = nil)
 
-    duped_board.flatten each do |square|
+    if current_pos && intended_pos
+      duped_positions = @board.deep_dup
+      duped_board = Board.new
+      duped_board.board = duped_positions
+      duped_board.execute_move(current_pos, intended_pos)
+    else
+      duped_board = self
+    end
+
+    king_pos = nil
+    duped_board.board.flatten.each do |square|
       if !square.nil?
-        square.moves
+        if square.color == color && square.is_a?(King)
+          king_pos = square.pos
+        end
       end
     end
 
+    duped_board.board.flatten.each do |square|
+      p square
+      if !square.nil? && square.color != color
+        return true if square.moves(duped_board).include?(king_pos)
+      end
+    end
+
+    false
   end
 
   def checkmate?
@@ -107,31 +127,41 @@ class HumanPlayer
   attr_reader :color
 
   def initialize(color)
-
+    @color = color
   end
+
+  def move
+    puts "What piece would you like to move? e.g. [x,y]"
+    start_pos = gets.chomp
+    puts "Where would you like to move it to? e.g. [x,y]"
+    end_pos = gets.chomp
+
+    [start_pos, end_pos]
+  end
+
 end
 
 module SlidingPieces
 
-  def moves(board)
+  def moves(game_board)
     moves = []
     move_dirs.each do |dir_vert, dir_horz|
       (1..7).each do |multiplier|
-        target = [@pos[0] + x * multiplier, @pos[1] + y * multiplier]
-        moves << target if valid_move?(target, [dir_vert, dir_horz], board)
+        target = [@pos[0] + (dir_vert * multiplier), @pos[1] + (dir_horz * multiplier)]
+        moves << target if valid_move?(target, [dir_vert, dir_horz], game_board)
       end
     end
     moves
   end
 
-  def valid_move?(target, move_dir, board)
+  def valid_move?(target, move_dir, game_board)
     return false if target[0] < 0 || target[0] > 7 || target[1] < 0 || target[1] > 7
 
     tested_pos = @pos
     test_vert,test_horz = @pos
     target_vert, target_horz = target
     until tested_pos == target
-      if !board.board[test_vert][test_horz].nil?
+      if !game_board.board[test_vert][test_horz].nil?
         return false
       else
         test_vert += move_dir[0]
@@ -139,11 +169,11 @@ module SlidingPieces
       end
     end
 
-    if !board[target_vert][target_horz].nil?
-      return false if board[target_vert][target_horz].color == self.color
+    if !game_board.board[target_vert][target_horz].nil?
+      return false if game_board.board[target_vert][target_horz].color == self.color
     end
 
-    return false if board.check?(@pos, [target_vert, target_horz])
+    return false if game_board.check?(@color, @pos, [target_vert, target_horz])
     true
   end
 
@@ -198,24 +228,24 @@ end
 
 module SteppingPieces
 
-  def moves(board)
+  def moves(game_board)
     moves = []
     curr_x, curr_y = @pos
     move_locations.each do |dx, dy|
       target = [curr_x + dx, curr_y + dy]
-      moves << target if valid_move?(target, board)
+      moves << target if valid_move?(target, game_board)
     end
     moves
   end
 
-  def valid_move?(target, board)
-    target = target_x, target_y
-    if !board[target_x][target_y].nil?
-      return false if board[target_x][target_y].color == self.color
+  def valid_move?(target, game_board)
+    target_x, target_y = target
+    if !game_board.board[target_x][target_y].nil?
+      return false if game_board.board[target_x][target_y].color == self.color
     else
       #check check
     end
-    return false if board.check?(@pos, [target[0], target[1]])
+    return false if game_board.check?(@color, @pos, [target[0], target[1]])
     true
   end
 end
@@ -263,7 +293,7 @@ class Pawn
 
 
 
-  def moves(board)
+  def moves(game_board)
     if @color == :white
       move_offsets = [[1,0]]
       if @pos[0] == 1
@@ -279,33 +309,33 @@ class Pawn
 
 
     if color == :white
-      if board[@pos[0] + 1][@pos[1] + 1].color == :green
+      if !game_board.board[@pos[0] + 1][@pos[1] + 1].nil? && game_board.board[@pos[0] + 1][@pos[1] + 1].color == :green
         move_offsets += [1,1]
       end
-      if board[@pos[0] + 1][@pos[1] - 1].color == :green
+      if !game_board.board[@pos[0] + 1][@pos[1] - 1].nil? && game_board.board[@pos[0] + 1][@pos[1] - 1].color == :green
         move_offsets += [1,-1]
       end
     else
-      if board[@pos[0] - 1][@pos[1] + 1].color == :white
+      if !game_board.board[@pos[0] - 1][@pos[1] + 1].nil? && game_board.board[@pos[0] - 1][@pos[1] + 1].color == :white
         move_offsets += [-1,1]
       end
-      if board[@pos[0] - 1][@pos[1] - 1].color == :white
+      if !game_board.board[@pos[0] - 1][@pos[1] - 1].nil? && game_board.board[@pos[0] - 1][@pos[1] - 1].color == :white
         move_offsets += [-1,-1]
       end
     end
 
-    moves = move_offsets.select {|offset| valid_move?(offset, board)}
+    moves = move_offsets.select {|offset| valid_move?(offset, game_board)}
   end
 
-  def valid_move?(offset, board)
+  def valid_move?(offset, game_board)
     offset_vert, offset_horz = offset
     if offset_horz == 0
       (1..offset_vert).each do |moves_forward|
-        return false if !board[@pos[0] +  moves_forward][@pos[1]].nil?
+        return false if !game_board.board[@pos[0] +  moves_forward][@pos[1]].nil?
       end
     end
 
-    return false if board.check?(@pos, [@pos[0] + offset_vert, @pos[1] + offset_horz])
+    return false if game_board.check?(@color, @pos, [@pos[0] + offset_vert, @pos[1] + offset_horz])
   end
 
 end
