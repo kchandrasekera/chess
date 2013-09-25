@@ -83,8 +83,9 @@ class Board
   def execute_move(current_pos, intended_pos)
     p "current: #{current_pos}"
     p "intended: #{intended_pos}"
-    @board[current_pos[0]][current_pos[1]].pos = intended_pos
-    @board[intended_pos[0]][intended_pos[1]] = @board[current_pos[0]][current_pos[1]]
+    moving_piece = @board[current_pos[0]][current_pos[1]]
+    moving_piece.pos = intended_pos
+    @board[intended_pos[0]][intended_pos[1]] = moving_piece
     @board[current_pos[0]][current_pos[1]] = nil
 
   end
@@ -356,23 +357,24 @@ class Pawn < Piece
 
     if color == :white
       if !game_board.board[@pos[0] + 1][@pos[1] + 1].nil? && game_board.board[@pos[0] + 1][@pos[1] + 1].color == :green
-        move_offsets += [1,1]
+        move_offsets << [1,1]
       end
       if !game_board.board[@pos[0] + 1][@pos[1] - 1].nil? && game_board.board[@pos[0] + 1][@pos[1] - 1].color == :green
-        move_offsets += [1,-1]
+        move_offsets << [1,-1]
       end
     else
       if !game_board.board[@pos[0] - 1][@pos[1] + 1].nil? && game_board.board[@pos[0] - 1][@pos[1] + 1].color == :white
-        move_offsets += [-1,1]
+        move_offsets << [-1,1]
       end
       if !game_board.board[@pos[0] - 1][@pos[1] - 1].nil? && game_board.board[@pos[0] - 1][@pos[1] - 1].color == :white
-        move_offsets += [-1,-1]
+        move_offsets << [-1,-1]
       end
     end
 
     moves = []
     move_offsets.each do |dx, dy|
       target = [curr_vert + dx, curr_horz + dy]
+
       moves << target if valid_move?([dx, dy], target, game_board)
     end
 
@@ -414,6 +416,8 @@ class Array
         duped_pos = el.pos.dup
         duped_piece.pos = duped_pos
         duped_array << duped_piece
+      else
+        duped_array << nil
       end
     end
     duped_array
