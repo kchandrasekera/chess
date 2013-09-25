@@ -155,11 +155,12 @@ module SlidingPieces
   end
 
   def valid_move?(target, move_dir, game_board)
-    return false if target[0] < 0 || target[0] > 7 || target[1] < 0 || target[1] > 7
+    target_vert, target_horz = target
+    return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
 
     tested_pos = @pos
     test_vert,test_horz = @pos
-    target_vert, target_horz = target
+
     until tested_pos == target
       if !game_board.board[test_vert][test_horz].nil?
         return false
@@ -230,22 +231,24 @@ module SteppingPieces
 
   def moves(game_board)
     moves = []
-    curr_x, curr_y = @pos
+    curr_vert, curr_horz = @pos
     move_locations.each do |dx, dy|
-      target = [curr_x + dx, curr_y + dy]
+      target = [curr_vert + dx, curr_horz + dy]
       moves << target if valid_move?(target, game_board)
     end
     moves
   end
 
   def valid_move?(target, game_board)
-    target_x, target_y = target
-    if !game_board.board[target_x][target_y].nil?
-      return false if game_board.board[target_x][target_y].color == self.color
+    target_vert, target_horz = target
+    return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
+
+    if !game_board.board[target_vert][target_horz].nil?
+      return false if game_board.board[target_vert][target_horz].color == self.color
     else
       #check check
     end
-    return false if game_board.check?(@color, @pos, [target[0], target[1]])
+    return false if game_board.check?(@color, @pos, [target_vert, target_horz])
     true
   end
 end
@@ -329,6 +332,8 @@ class Pawn
 
   def valid_move?(offset, game_board)
     offset_vert, offset_horz = offset
+    return false if offset_vert < 0 || offset_vert > 7 || offset_horz < 0 || offset_horz > 7
+
     if offset_horz == 0
       (1..offset_vert).each do |moves_forward|
         return false if !game_board.board[@pos[0] +  moves_forward][@pos[1]].nil?
