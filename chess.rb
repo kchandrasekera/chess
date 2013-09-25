@@ -1,6 +1,7 @@
 # coding: utf-8
 require "colorize"
 
+require 'debugger'
 class Game
   attr_accessor :game_board, :player1, :player2, :turn
   def initialize
@@ -13,11 +14,16 @@ class Game
   def play
     until @game_board.checkmate?
       @game_board.display
-      puts "Check" if @game_board.check?(:white) || @game_board.check?(:green)
+      puts "Check!" if @game_board.check?(:white) || @game_board.check?(:green)
       begin
-        @turn % 2 == 1 ? move = @player1.move : move = @player2.move
-        execute_valid_move
-      rescue
+        if @turn % 2 == 1
+          move = @player1.move("Player 1")
+        else
+          move = @player2.move("Player 2")
+        end
+        p move
+        @game_board.execute_valid_move(move)
+      rescue InvalidMoveError
         retry
       end
       @turn += 1
@@ -77,12 +83,14 @@ class Board
 
   end
 
-  def execute_valid_move(current_pos, intended_pos)
-    self.is_a?(Array)
-    if @board[current_pos[0]][current_pos[1]].moves(self).include?(intended_pos)
+  def execute_valid_move(move)
+    debugger
+    p "here outside loop"
+    if @board[current_pos[0]][current_pos[1]].valid_moves(self).include?(intended_pos)
+      p "here inside loop"
       execute_move(current_pos, intended_pos)
     else
-      #invalid move - raise exception
+      p "error inside loop"
       raise InvalidMoveError.new "Invalid move"
     end
 
@@ -90,35 +98,42 @@ class Board
 
   def check?(color, current_pos = nil, intended_pos = nil)
 
+    king_pos = get_king_pos(color)
+
     if current_pos && intended_pos
       duped_positions = @board.deep_dup
       duped_board = Board.new
       duped_board.board = duped_positions
       duped_board.execute_move(current_pos, intended_pos)
-    else
-      duped_board = self
-    end
-
-    king_pos = nil
-    duped_board.board.flatten.each do |square|
-      if !square.nil?
-        if square.color == color && square.is_a?(King)
-          king_pos = square.pos
+      duped_board.board.flatten.each do |square|
+        if !square.nil? && square.color != color
+          return true if square.moves(duped_board).include?(king_pos)
         end
       end
-    end
-
-    duped_board.board.flatten.each do |square|
-      p square
-      if !square.nil? && square.color != color
-        return true if square.moves(duped_board).include?(king_pos)
+    else
+      @board.flatten.each do |square|
+        if !square.nil? && square.color != color
+          return true if square.moves(self).include?(king_pos)
+        end
       end
     end
 
     false
   end
 
+  def get_king_pos(color)
+    king_pos = nil
+    @board.flatten.each do |square|
+      if !square.nil?
+        if square.color == color && square.is_a?(King)
+          king_pos = square.pos
+        end
+      end
+    end
+  end
+
   def checkmate?
+    false
   end
 
 end
@@ -130,11 +145,12 @@ class HumanPlayer
     @color = color
   end
 
-  def move
-    puts "What piece would you like to move? e.g. [x,y]"
-    start_pos = gets.chomp
-    puts "Where would you like to move it to? e.g. [x,y]"
-    end_pos = gets.chomp
+  def move(player)
+    puts player
+    puts "What piece would you like to move? e.g. '1, 3'"
+    start_pos = gets.chomp.split(", ").map(&:to_i)
+    puts "Where would you like to move it to? e.g. '2, 3'"
+    end_pos = gets.chomp.split(", ").map(&:to_i)
 
     [start_pos, end_pos]
   end
@@ -152,6 +168,14 @@ module SlidingPieces
       end
     end
     moves
+  end
+
+  def valid_moves(game_board)
+    valid_moves = moves(game_board)
+    valid_moves.each do |move|
+      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    end
+    true
   end
 
   def valid_move?(target, move_dir, game_board)
@@ -174,7 +198,6 @@ module SlidingPieces
       return false if game_board.board[target_vert][target_horz].color == self.color
     end
 
-    return false if game_board.check?(@color, @pos, [target_vert, target_horz])
     true
   end
 
@@ -207,7 +230,7 @@ class Queen
 
 
   def move_dirs
-    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1][-1,1]]
+    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1],[-1,1]]
   end
 end
 
@@ -223,7 +246,7 @@ class Bishop
 
 
   def move_dirs
-    [[1,1],[-1,-1],[1,-1][-1,1]]
+    [[1,1],[-1,-1],[1,-1],[-1,1]]
   end
 end
 
@@ -239,16 +262,22 @@ module SteppingPieces
     moves
   end
 
+  def valid_moves(game_board)
+    moves = moves(game_board)
+    moves.each do |move|
+      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    end
+    true
+  end
+
   def valid_move?(target, game_board)
     target_vert, target_horz = target
     return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
 
     if !game_board.board[target_vert][target_horz].nil?
       return false if game_board.board[target_vert][target_horz].color == self.color
-    else
-      #check check
     end
-    return false if game_board.check?(@color, @pos, [target_vert, target_horz])
+
     true
   end
 end
@@ -265,7 +294,7 @@ class King
 
 
   def move_locations
-    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1][-1,1]]
+    [[-1,0],[0,-1],[0,1],[1,0],[1,1],[-1,-1],[1,-1],[-1,1]]
   end
 end
 
@@ -294,8 +323,6 @@ class Pawn
     @unicode = unicode
   end
 
-
-
   def moves(game_board)
     if @color == :white
       move_offsets = [[1,0]]
@@ -308,8 +335,6 @@ class Pawn
         move_offsets << [-2,0]
       end
     end
-
-
 
     if color == :white
       if !game_board.board[@pos[0] + 1][@pos[1] + 1].nil? && game_board.board[@pos[0] + 1][@pos[1] + 1].color == :green
@@ -330,6 +355,14 @@ class Pawn
     moves = move_offsets.select {|offset| valid_move?(offset, game_board)}
   end
 
+  def valid_moves(game_board)
+    moves = moves(game_board)
+    moves.each do |move|
+      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    end
+    true
+  end
+
   def valid_move?(offset, game_board)
     offset_vert, offset_horz = offset
     return false if offset_vert < 0 || offset_vert > 7 || offset_horz < 0 || offset_horz > 7
@@ -340,10 +373,10 @@ class Pawn
       end
     end
 
-    return false if game_board.check?(@color, @pos, [@pos[0] + offset_vert, @pos[1] + offset_horz])
+    true
   end
-
 end
+
 
 class Array
   def deep_dup
