@@ -16,12 +16,7 @@ class Game
       @game_board.display
       puts "Check!" if @game_board.check?(:white) || @game_board.check?(:green)
       begin
-        if @turn % 2 == 1
-          move = @player1.move("Player 1")
-        else
-          move = @player2.move("Player 2")
-        end
-        p move
+        @turn % 2 == 1 ? move = @player1.move("Player 1") : move = @player2.move("Player 2")
         @game_board.execute_valid_move(move)
       rescue InvalidMoveError
         retry
@@ -76,7 +71,9 @@ class Board
   end
 
   def execute_move(current_pos, intended_pos)
-
+    p "current: #{current_pos}"
+    p "intended: #{intended_pos}"
+    p @board[current_pos[0]]
     @board[current_pos[0]][current_pos[1]].pos = intended_pos
     @board[intended_pos[0]][intended_pos[1]] = @board[current_pos[0]][current_pos[1]]
     @board[current_pos[0]][current_pos[1]] = nil
@@ -84,7 +81,8 @@ class Board
   end
 
   def execute_valid_move(move)
-    debugger
+    p move
+    current_pos, intended_pos = move[0], move[1]
     p "here outside loop"
     if @board[current_pos[0]][current_pos[1]].valid_moves(self).include?(intended_pos)
       p "here inside loop"
@@ -99,6 +97,8 @@ class Board
   def check?(color, current_pos = nil, intended_pos = nil)
 
     king_pos = get_king_pos(color)
+
+
 
     if current_pos && intended_pos
       duped_positions = @board.deep_dup
@@ -157,6 +157,10 @@ class HumanPlayer
 
 end
 
+class Piece
+
+end
+
 module SlidingPieces
 
   def moves(game_board)
@@ -172,10 +176,10 @@ module SlidingPieces
 
   def valid_moves(game_board)
     valid_moves = moves(game_board)
-    valid_moves.each do |move|
-      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    valid_moves.select do |move|
+      p "our current position is "
+      !game_board.check?(@color, @pos, [move[0], move[1]])
     end
-    true
   end
 
   def valid_move?(target, move_dir, game_board)
@@ -203,7 +207,7 @@ module SlidingPieces
 
 end
 
-class Rook
+class Rook < Piece
   attr_accessor :color, :pos, :unicode
   include SlidingPieces
 
@@ -218,7 +222,7 @@ class Rook
   end
 end
 
-class Queen
+class Queen < Piece
   attr_accessor :color, :pos, :unicode
   include SlidingPieces
   def initialize(pos, color, unicode)
@@ -234,7 +238,7 @@ class Queen
   end
 end
 
-class Bishop
+class Bishop < Piece
   attr_accessor :color, :pos, :unicode
   include SlidingPieces
   def initialize(pos, color, unicode)
@@ -263,11 +267,10 @@ module SteppingPieces
   end
 
   def valid_moves(game_board)
-    moves = moves(game_board)
-    moves.each do |move|
-      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    valid_moves = moves(game_board)
+    valid_moves.select do |move|
+      !game_board.check?(@color, @pos, [move[0], move[1]])
     end
-    true
   end
 
   def valid_move?(target, game_board)
@@ -282,7 +285,7 @@ module SteppingPieces
   end
 end
 
-class King
+class King < Piece
   attr_accessor :color, :pos, :unicode
   include SteppingPieces
   def initialize(pos, color, unicode)
@@ -298,7 +301,7 @@ class King
   end
 end
 
-class Knight
+class Knight < Piece
   attr_accessor :color, :pos, :unicode
   include SteppingPieces
   def initialize(pos, color, unicode)
@@ -315,7 +318,7 @@ class Knight
 
 end
 
-class Pawn
+class Pawn < Piece
   attr_accessor :color, :pos, :unicode
   def initialize(pos, color, unicode)
     @pos = pos
@@ -324,6 +327,9 @@ class Pawn
   end
 
   def moves(game_board)
+    curr_vert = @pos[0]
+    curr_horz = @pos[1]
+
     if @color == :white
       move_offsets = [[1,0]]
       if @pos[0] == 1
@@ -352,20 +358,26 @@ class Pawn
       end
     end
 
-    moves = move_offsets.select {|offset| valid_move?(offset, game_board)}
+    moves = []
+    move_offsets.each do |dx, dy|
+      target = [curr_vert + dx, curr_horz + dy]
+      moves << target if valid_move?([dx, dy], target, game_board)
+    end
+
+    moves
   end
 
   def valid_moves(game_board)
-    moves = moves(game_board)
-    moves.each do |move|
-      return false if game_board.check?(@color, @pos, [move[0], move[1]])
+    valid_moves = moves(game_board)
+    valid_moves.select do |move|
+      !game_board.check?(@color, @pos, [move[0], move[1]])
     end
-    true
   end
 
-  def valid_move?(offset, game_board)
+  def valid_move?(offset, target, game_board)
     offset_vert, offset_horz = offset
-    return false if offset_vert < 0 || offset_vert > 7 || offset_horz < 0 || offset_horz > 7
+    target_vert, target_horz = target
+    return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
 
     if offset_horz == 0
       (1..offset_vert).each do |moves_forward|
@@ -378,17 +390,51 @@ class Pawn
 end
 
 
+
 class Array
   def deep_dup
     duped_array = []
-    if self.flatten == self
-      return self.dup
-    else
-      self.each do |el|
+    self.each_with_index do |el, idx|
+      if el.is_a?(Array)
         duped_array << el.deep_dup
+      elsif el.is_a?(Piece)
+        duped_piece = el.dup
+        duped_pos = el.pos.dup
+        duped_piece.pos = duped_pos
+        duped_array << duped_piece
       end
     end
     duped_array
+  end
+
+    # self.each_with_index do |el, idx|
+      #  if el is an array
+      #  call deep dup on it
+      # elsif el is a piece
+            # dup the piece
+            # dup the piece location
+      #end
+
+
+      # class Array
+      #   def deep_dup
+      #     duped_array = []
+      #     if self.flatten == self
+      #       return self.dup
+      #     else
+      #       self.each do |el|
+      #         duped_array << el.deep_dup
+      #       end
+      #     end
+      #     duped_array
+      #   end
+      # end
+end
+
+
+class InvalidMoveError < StandardError
+  def initialize(msg = "Invalid move. Please reenter a move:")
+    super
   end
 end
 
