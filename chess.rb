@@ -109,21 +109,19 @@ class Board
 
   def check?(color, current_pos = nil, intended_pos = nil)
 
-    king_pos = get_king_pos(color)
-
-
-
     if current_pos && intended_pos
       duped_positions = @board.deep_dup
       duped_board = Board.new
       duped_board.board = duped_positions
       duped_board.execute_move(current_pos, intended_pos)
+      king_pos = duped_board.get_king_pos(color)
       duped_board.board.flatten.each do |square|
         if !square.nil? && square.color != color
           return true if square.moves(duped_board).include?(king_pos)
         end
       end
     else
+      king_pos = get_king_pos(color)
       @board.flatten.each do |square|
         if !square.nil? && square.color != color
           return true if square.moves(self).include?(king_pos)
@@ -143,9 +141,10 @@ class Board
         end
       end
     end
+    king_pos
   end
 
-  def checkmate?
+  def checkmate?(color)
     false
   end
 
