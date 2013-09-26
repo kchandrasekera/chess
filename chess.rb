@@ -18,6 +18,7 @@ class Game
       begin
         @turn % 2 == 1 ? player = @player1 : player = @player2
         move = player.move(player.color)
+        p move
         @game_board.check_color(move, player.color)
         @game_board.execute_valid_move(move)
       rescue InvalidMoveError
@@ -58,7 +59,8 @@ class Board
 
   def display
     reversed_board = @board.reverse
-    reversed_board.each do |row|
+    reversed_board.each_with_index do |row, row_index|
+      print "#{8 - row_index} "
       row.each do |object|
         if object.nil?
           print "\u25A1".colorize(:gray) + " "
@@ -70,6 +72,7 @@ class Board
       end
       puts
     end
+    puts "  a b c d e f g h"
   end
 
   def check_color(move, color)
@@ -157,14 +160,35 @@ class HumanPlayer
 
   def move(color)
     puts "#{color} move: "
-    puts "What piece would you like to move? e.g. '1, 3'"
-    start_pos = gets.chomp.split(", ").map(&:to_i)
-    puts "Where would you like to move it to? e.g. '2, 3'"
-    end_pos = gets.chomp.split(", ").map(&:to_i)
+
+    puts "What piece would you like to move? e.g. 'e2'"
+    start_pos = gets.chomp.split("")
+    start_pos = valid_coordinates(start_pos)
+
+    puts "Where would you like to move it to? e.g. 'e4'"
+    end_pos = gets.chomp.split("")
+    end_pos = valid_coordinates(end_pos)
 
     [start_pos, end_pos]
   end
 
+  def valid_coordinates(pos)
+    if ("a".."h").include?(pos[0])
+      col = pos[0]
+      if (1..8).include?(pos[1].to_i)
+        row = pos[1].to_i
+      else
+        raise InvalidMoveError
+      end
+    else
+      raise InvalidMoveError
+    end
+
+    col = ('a'..'h').to_a.index(col)
+    row -= 1
+
+    [row, col]
+  end
 
 end
 
