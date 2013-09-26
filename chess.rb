@@ -12,19 +12,30 @@ class Game
   end
 
   def play
-    until @game_board.checkmate?
+    until @game_board.checkmate?(player1.color) || @game_board.checkmate?(player2.color)
       @game_board.display
-      puts "Check!" if @game_board.check?(:white) || @game_board.check?(:green)
+      puts "Check!" if @game_board.check?(player1.color) || @game_board.check?(player2.color)
       begin
         @turn % 2 == 1 ? player = @player1 : player = @player2
         move = player.move(player.color)
-        p move
         @game_board.check_color(move, player.color)
         @game_board.execute_valid_move(move)
       rescue InvalidMoveError
         retry
       end
       @turn += 1
+    end
+
+    game_result
+  end
+
+  def game_result
+    @game_board.display
+
+    if turn % 2 == 0
+      puts "CHECKMATE! #{@player1.color} wins!"
+    else
+      puts "CHECKMATE! #{@player2.color} wins!"
     end
   end
 end
@@ -84,8 +95,6 @@ class Board
 
 
   def execute_move(current_pos, intended_pos)
-    p "current: #{current_pos}"
-    p "intended: #{intended_pos}"
     moving_piece = @board[current_pos[0]][current_pos[1]]
     moving_piece.pos = intended_pos
     @board[intended_pos[0]][intended_pos[1]] = moving_piece
@@ -94,14 +103,10 @@ class Board
   end
 
   def execute_valid_move(move)
-    p move
     current_pos, intended_pos = move[0], move[1]
-    p "here outside loop"
     if @board[current_pos[0]][current_pos[1]].valid_moves(self).include?(intended_pos)
-      p "here inside loop"
       execute_move(current_pos, intended_pos)
     else
-      p "error inside loop"
       raise InvalidMoveError.new
     end
 
@@ -145,7 +150,12 @@ class Board
   end
 
   def checkmate?(color)
-    false
+    @board.flatten.each do |square|
+      if !square.nil? && square.color == color
+        return false if !square.valid_moves(self).empty?
+      end
+    end
+    true
   end
 
 end
@@ -209,9 +219,7 @@ module SlidingPieces
 
   def valid_moves(game_board)
     valid_moves = moves(game_board)
-    p valid_moves
     valid_moves.select do |move|
-      p "our current position is "
       !game_board.check?(@color, @pos, [move[0], move[1]])
     end
   end
@@ -220,14 +228,11 @@ module SlidingPieces
     target_vert, target_horz = target
     return false if target_vert < 0 || target_vert > 7 || target_horz < 0 || target_horz > 7
 
-    #p "pos: #{@pos}"
-    #p "target: {target}"
     tested_pos = [@pos[0] + move_dir[0], @pos[1] + move_dir[1]]
     test_vert,test_horz = tested_pos
 
     until [test_vert, test_horz] == target
       if !game_board.board[test_vert][test_horz].nil?
-        #p "tested_pos: #{[test_vert, test_horz]}, intermediary square occupied, false"
         return false
       end
       test_vert += move_dir[0]
@@ -235,11 +240,9 @@ module SlidingPieces
     end
 
     if !game_board.board[target_vert][target_horz].nil?
-      #p "you are already occupying square"
       return false if game_board.board[target_vert][target_horz].color == self.color
     end
 
-    #p "this is gonna be a valid move"
     true
   end
 
